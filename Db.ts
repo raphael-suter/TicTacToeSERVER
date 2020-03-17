@@ -1,6 +1,6 @@
 import * as cors from 'cors';
 import * as express from 'express';
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectID } from 'mongodb';
 
 class Db {
   private players;
@@ -23,15 +23,15 @@ class Db {
 
     [
       {
-        url: '/loadPlayer/:id',
+        url: '/loadPlayer/:groupId/:playerId',
         action: this.loadPLayer
       },
       {
-        url: '/savePlayer/:id/:name/:points',
+        url: '/savePlayer/:groupId/:playerId/:name/:points',
         action: this.savePlayer
       },
       {
-        url: '/deletePlayer/:id',
+        url: '/deletePlayer/:groupId/:playerId',
         action: this.deletePlayer
       }
     ].forEach(({ url, action }) => app.get(url, action));
@@ -41,44 +41,57 @@ class Db {
   }
 
   public loadPLayer = (req, res) => {
-    const _id = parseInt(req.params.id);
+    const groupId = new ObjectID(req.params.groupId);
+    const playerId = parseInt(req.params.playerId);
 
     this.try({
       res,
-      action: this.players.findOne({ _id }),
+      action: this.players.findOne({ _id: { groupId, playerId } }),
       onSuccess: result => res.json(result)
     });
   }
 
   public savePlayer = (req, res) => {
-    const _id = parseInt(req.params.id);
-    const { name, points } = req.params;
+    const playerId = parseInt(req.params.playerId);
+    let { groupId, name, points } = req.params;
 
+    if (groupId === 'new') {
+      this.insertPlayer(res, new ObjectID(), playerId, name, points);
+    } else {
+      groupId = new ObjectID(groupId);
+
+      this.try({
+        res,
+        action: this.players.updateOne({ _id: { groupId, playerId } }, { $set: { name, points } }),
+        onSuccess:
+          // Maybe updateOne had no effect (matchedCount = 0), because there was no record found with this id.
+          // In this case a new record has to be inserted.
+          ({ matchedCount }) => {
+            if (matchedCount === 0) {
+              this.insertPlayer(res, groupId, playerId, name, points);
+            } else {
+              res.json(groupId);
+            }
+          }
+      });
+    }
+  }
+
+  private insertPlayer(res, groupId, playerId, name, points) {
     this.try({
       res,
-      action: this.players.updateOne({ _id }, { $set: { name, points } }),
-      onSuccess:
-        // Maybe updateOne had no effect (matchedCount = 0), because there was no record found with this id.
-        // In this case a new record has to be inserted.
-        ({ matchedCount }) => {
-          if (matchedCount === 0) {
-            this.try({
-              res,
-              action: this.players.insertOne({ _id, name, points })
-            });
-          } else {
-            res.sendStatus(200);
-          }
-        }
+      action: this.players.insertOne({ _id: { groupId, playerId }, name, points }),
+      onSuccess: () => res.json(groupId)
     });
   }
 
   public deletePlayer = (req, res) => {
-    const _id = parseInt(req.params.id);
+    const groupId = new ObjectID(req.params.groupId);
+    const playerId = parseInt(req.params.playerId);
 
     this.try({
       res,
-      action: this.players.deleteOne({ _id })
+      action: this.players.deleteOne({ _id: { groupId, playerId } })
     });
   }
 

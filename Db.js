@@ -7,41 +7,46 @@ var Db = /** @class */ (function () {
     function Db() {
         var _this = this;
         this.loadPLayer = function (req, res) {
-            var _id = parseInt(req.params.id);
+            var groupId = new mongodb_1.ObjectID(req.params.groupId);
+            var playerId = parseInt(req.params.playerId);
             _this["try"]({
                 res: res,
-                action: _this.players.findOne({ _id: _id }),
+                action: _this.players.findOne({ _id: { groupId: groupId, playerId: playerId } }),
                 onSuccess: function (result) { return res.json(result); }
             });
         };
         this.savePlayer = function (req, res) {
-            var _id = parseInt(req.params.id);
-            var _a = req.params, name = _a.name, points = _a.points;
-            _this["try"]({
-                res: res,
-                action: _this.players.updateOne({ _id: _id }, { $set: { name: name, points: points } }),
-                onSuccess: 
-                // Maybe updateOne had no effect (matchedCount = 0), because there was no record found with this id.
-                // In this case a new record has to be inserted.
-                function (_a) {
-                    var matchedCount = _a.matchedCount;
-                    if (matchedCount === 0) {
-                        _this["try"]({
-                            res: res,
-                            action: _this.players.insertOne({ _id: _id, name: name, points: points })
-                        });
+            var playerId = parseInt(req.params.playerId);
+            var _a = req.params, groupId = _a.groupId, name = _a.name, points = _a.points;
+            if (groupId === 'new') {
+                _this.insertPlayer(res, new mongodb_1.ObjectID(), playerId, name, points);
+            }
+            else {
+                groupId = new mongodb_1.ObjectID(groupId);
+                _this["try"]({
+                    res: res,
+                    action: _this.players.updateOne({ _id: { groupId: groupId, playerId: playerId } }, { $set: { name: name, points: points } }),
+                    onSuccess: 
+                    // Maybe updateOne had no effect (matchedCount = 0), because there was no record found with this id.
+                    // In this case a new record has to be inserted.
+                    function (_a) {
+                        var matchedCount = _a.matchedCount;
+                        if (matchedCount === 0) {
+                            _this.insertPlayer(res, groupId, playerId, name, points);
+                        }
+                        else {
+                            res.json(groupId);
+                        }
                     }
-                    else {
-                        res.sendStatus(200);
-                    }
-                }
-            });
+                });
+            }
         };
         this.deletePlayer = function (req, res) {
-            var _id = parseInt(req.params.id);
+            var groupId = new mongodb_1.ObjectID(req.params.groupId);
+            var playerId = parseInt(req.params.playerId);
             _this["try"]({
                 res: res,
-                action: _this.players.deleteOne({ _id: _id })
+                action: _this.players.deleteOne({ _id: { groupId: groupId, playerId: playerId } })
             });
         };
         mongodb_1.MongoClient
@@ -57,15 +62,15 @@ var Db = /** @class */ (function () {
         app.use(cors());
         [
             {
-                url: '/loadPlayer/:id',
+                url: '/loadPlayer/:groupId/:playerId',
                 action: this.loadPLayer
             },
             {
-                url: '/savePlayer/:id/:name/:points',
+                url: '/savePlayer/:groupId/:playerId/:name/:points',
                 action: this.savePlayer
             },
             {
-                url: '/deletePlayer/:id',
+                url: '/deletePlayer/:groupId/:playerId',
                 action: this.deletePlayer
             }
         ].forEach(function (_a) {
@@ -74,6 +79,13 @@ var Db = /** @class */ (function () {
         });
         app.listen(8000);
         console.log('Services started.');
+    };
+    Db.prototype.insertPlayer = function (res, groupId, playerId, name, points) {
+        this["try"]({
+            res: res,
+            action: this.players.insertOne({ _id: { groupId: groupId, playerId: playerId }, name: name, points: points }),
+            onSuccess: function () { return res.json(groupId); }
+        });
     };
     Db.prototype["try"] = function (params) {
         var _this = this;
