@@ -19,7 +19,7 @@ class Db {
 
   private startServices() {
     const app = express();
-    const resource = '/:groupId/:playerId';
+    const resource = '/v1/:groupId/:playerId';
 
     app.use(cors());
     app.use(express.json());

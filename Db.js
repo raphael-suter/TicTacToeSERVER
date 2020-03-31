@@ -63,7 +63,7 @@ var Db = /** @class */ (function () {
     }
     Db.prototype.startServices = function () {
         var app = express();
-        var resource = '/:groupId/:playerId';
+        var resource = '/v1/:groupId/:playerId';
         app.use(cors());
         app.use(express.json());
         app.get(resource, this.loadPLayer);
