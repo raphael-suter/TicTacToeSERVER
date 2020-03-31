@@ -7,8 +7,9 @@ var Db = /** @class */ (function () {
     function Db() {
         var _this = this;
         this.loadPLayer = function (req, res) {
-            var groupId = new mongodb_1.ObjectID(req.params.groupId);
-            var playerId = parseInt(req.params.playerId);
+            var _a = req.params, groupId = _a.groupId, playerId = _a.playerId;
+            groupId = new mongodb_1.ObjectID(groupId);
+            playerId = parseInt(playerId);
             _this["try"]({
                 res: res,
                 action: _this.players.findOne({ _id: { groupId: groupId, playerId: playerId } }),
@@ -16,8 +17,9 @@ var Db = /** @class */ (function () {
             });
         };
         this.savePlayer = function (req, res) {
-            var playerId = parseInt(req.params.playerId);
-            var _a = req.params, groupId = _a.groupId, name = _a.name, points = _a.points;
+            var _a = req.params, groupId = _a.groupId, playerId = _a.playerId;
+            var _b = req.body, name = _b.name, points = _b.points;
+            playerId = parseInt(playerId);
             if (groupId === 'new') {
                 _this.insertPlayer(res, new mongodb_1.ObjectID(), playerId, name, points);
             }
@@ -42,11 +44,13 @@ var Db = /** @class */ (function () {
             }
         };
         this.deletePlayer = function (req, res) {
-            var groupId = new mongodb_1.ObjectID(req.params.groupId);
-            var playerId = parseInt(req.params.playerId);
+            var _a = req.params, groupId = _a.groupId, playerId = _a.playerId;
+            groupId = new mongodb_1.ObjectID(groupId);
+            playerId = parseInt(playerId);
             _this["try"]({
                 res: res,
-                action: _this.players.deleteOne({ _id: { groupId: groupId, playerId: playerId } })
+                action: _this.players.deleteOne({ _id: { groupId: groupId, playerId: playerId } }),
+                onSuccess: function () { return res.sendStatus(200); }
             });
         };
         mongodb_1.MongoClient
@@ -59,24 +63,12 @@ var Db = /** @class */ (function () {
     }
     Db.prototype.startServices = function () {
         var app = express();
+        var resource = '/:groupId/:playerId';
         app.use(cors());
-        [
-            {
-                url: '/loadPlayer/:groupId/:playerId',
-                action: this.loadPLayer
-            },
-            {
-                url: '/savePlayer/:groupId/:playerId/:name/:points',
-                action: this.savePlayer
-            },
-            {
-                url: '/deletePlayer/:groupId/:playerId',
-                action: this.deletePlayer
-            }
-        ].forEach(function (_a) {
-            var url = _a.url, action = _a.action;
-            return app.get(url, action);
-        });
+        app.use(express.json());
+        app.get(resource, this.loadPLayer);
+        app.put(resource, this.savePlayer);
+        app["delete"](resource, this.deletePlayer);
         app.listen(8000);
         console.log('Services started.');
     };
@@ -87,9 +79,9 @@ var Db = /** @class */ (function () {
             onSuccess: function () { return res.json(groupId); }
         });
     };
-    Db.prototype["try"] = function (params) {
+    Db.prototype["try"] = function (_a) {
         var _this = this;
-        var res = params.res, action = params.action, _a = params.onSuccess, onSuccess = _a === void 0 ? (function () { return res.sendStatus(200); }) : _a;
+        var res = _a.res, action = _a.action, onSuccess = _a.onSuccess;
         var onError = function (error) {
             res.sendStatus(500);
             _this.printError(error);

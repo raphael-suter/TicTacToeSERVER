@@ -19,30 +19,24 @@ class Db {
 
   private startServices() {
     const app = express();
-    app.use(cors());
+    const resource = '/:groupId/:playerId';
 
-    [
-      {
-        url: '/loadPlayer/:groupId/:playerId',
-        action: this.loadPLayer
-      },
-      {
-        url: '/savePlayer/:groupId/:playerId/:name/:points',
-        action: this.savePlayer
-      },
-      {
-        url: '/deletePlayer/:groupId/:playerId',
-        action: this.deletePlayer
-      }
-    ].forEach(({ url, action }) => app.get(url, action));
+    app.use(cors());
+    app.use(express.json());
+
+    app.get(resource, this.loadPLayer);
+    app.put(resource, this.savePlayer);
+    app.delete(resource, this.deletePlayer);
 
     app.listen(8000);
     console.log('Services started.');
   }
 
   public loadPLayer = (req, res) => {
-    const groupId = new ObjectID(req.params.groupId);
-    const playerId = parseInt(req.params.playerId);
+    let { groupId, playerId } = req.params;
+
+    groupId = new ObjectID(groupId);
+    playerId = parseInt(playerId);
 
     this.try({
       res,
@@ -52,8 +46,10 @@ class Db {
   }
 
   public savePlayer = (req, res) => {
-    const playerId = parseInt(req.params.playerId);
-    let { groupId, name, points } = req.params;
+    let { groupId, playerId } = req.params;
+    const { name, points } = req.body;
+
+    playerId = parseInt(playerId);
 
     if (groupId === 'new') {
       this.insertPlayer(res, new ObjectID(), playerId, name, points);
@@ -86,18 +82,19 @@ class Db {
   }
 
   public deletePlayer = (req, res) => {
-    const groupId = new ObjectID(req.params.groupId);
-    const playerId = parseInt(req.params.playerId);
+    let { groupId, playerId } = req.params;
+
+    groupId = new ObjectID(groupId);
+    playerId = parseInt(playerId);
 
     this.try({
       res,
-      action: this.players.deleteOne({ _id: { groupId, playerId } })
+      action: this.players.deleteOne({ _id: { groupId, playerId } }),
+      onSuccess: () => res.sendStatus(200)
     });
   }
 
-  private try(params: { res, action, onSuccess?}) {
-    const { res, action, onSuccess = (() => res.sendStatus(200)) } = params;
-
+  private try({ res, action, onSuccess }) {
     const onError = (error) => {
       res.sendStatus(500);
       this.printError(error);
